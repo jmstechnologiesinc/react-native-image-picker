@@ -38,6 +38,9 @@
     "type": "git",
     "url": "https://github.com/react-native-image-picker/react-native-image-picker.git"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "devDependencies": {
     "@react-native-community/bob": "0.17.1",
     "@semantic-release/git": "10.0.1",
