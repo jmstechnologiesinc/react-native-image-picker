@@ -334,8 +334,8 @@ public class Utils {
     // Since library users can have many modules in their project, we should respond to onActivityResult only for our request.
     static boolean isValidRequestCode(int requestCode) {
         switch (requestCode) {
-            case REQUEST_LAUNCH_IMAGE_CAPTURE:
-            case REQUEST_LAUNCH_VIDEO_CAPTURE:
+            // case REQUEST_LAUNCH_IMAGE_CAPTURE:
+            // case REQUEST_LAUNCH_VIDEO_CAPTURE:
             case REQUEST_LAUNCH_LIBRARY:
                 return true;
             default:

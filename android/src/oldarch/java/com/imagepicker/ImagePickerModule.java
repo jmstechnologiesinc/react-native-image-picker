@@ -26,10 +26,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule {
         return ImagePickerModuleImpl.NAME;
     }
 
-    @ReactMethod
-    public void launchCamera(final ReadableMap options, final Callback callback) {
-        imagePickerModuleImpl.launchCamera(options, callback);
-    }
+   
 
     @ReactMethod
     public void launchImageLibrary(final ReadableMap options, final Callback callback) {

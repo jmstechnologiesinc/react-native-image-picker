@@ -3,8 +3,7 @@
 #import <React/RCTConvert.h>
 
 typedef NS_ENUM(NSInteger, RNImagePickerTarget) {
-  camera = 1,
-  library
+  library = 1
 };
 
 @implementation RCTConvert(PresentationStyle)

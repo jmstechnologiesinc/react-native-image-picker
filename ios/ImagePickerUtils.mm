@@ -6,41 +6,10 @@
 
 + (void) setupPickerFromOptions:(UIImagePickerController *)picker options:(NSDictionary *)options target:(RNImagePickerTarget)target
 {
-    if ([[options objectForKey:@"mediaType"] isEqualToString:@"video"]) {
+    picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
 
-        if ([[options objectForKey:@"videoQuality"] isEqualToString:@"high"]) {
-            picker.videoQuality = UIImagePickerControllerQualityTypeHigh;
-        }
-        else if ([[options objectForKey:@"videoQuality"] isEqualToString:@"low"]) {
-            picker.videoQuality = UIImagePickerControllerQualityTypeLow;
-        }
-        else {
-            picker.videoQuality = UIImagePickerControllerQualityTypeMedium;
-        }
-    }
-    
-    if (target == camera) {
-        picker.sourceType = UIImagePickerControllerSourceTypeCamera;
-
-        if ([options[@"durationLimit"] doubleValue] > 0) {
-            picker.videoMaximumDuration = [options[@"durationLimit"] doubleValue];
-        }
-
-        if ([options[@"cameraType"] isEqualToString:@"front"]) {
-            picker.cameraDevice = UIImagePickerControllerCameraDeviceFront;
-        } else {
-            picker.cameraDevice = UIImagePickerControllerCameraDeviceRear;
-        }
-    } else {
-        picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
-    }
-
-    if ([options[@"mediaType"] isEqualToString:@"video"]) {
-        picker.mediaTypes = @[(NSString *)kUTTypeMovie];
-    } else if ([options[@"mediaType"] isEqualToString:@"photo"]) {
+    if ([options[@"mediaType"] isEqualToString:@"photo"]) {
         picker.mediaTypes = @[(NSString *)kUTTypeImage];
-    } else if ([options[@"mediaType"] isEqualToString:@"mixed"]) {
-        picker.mediaTypes = @[(NSString *)kUTTypeImage, (NSString *)kUTTypeMovie];
     }
 
     picker.modalPresentationStyle = [RCTConvert UIModalPresentationStyle:options[@"presentationStyle"]];
@@ -58,31 +27,17 @@
         configuration = [[PHPickerConfiguration alloc] init];
     }
 
-    if ([[options objectForKey:@"assetRepresentationMode"] isEqualToString:@"current"]) {
-        configuration.preferredAssetRepresentationMode = PHPickerConfigurationAssetRepresentationModeCurrent;
-    }
-    else if ([[options objectForKey:@"assetRepresentationMode"] isEqualToString:@"compatible"]) {
-        configuration.preferredAssetRepresentationMode = PHPickerConfigurationAssetRepresentationModeCompatible;
-    }
-    else {
-       configuration.preferredAssetRepresentationMode = PHPickerConfigurationAssetRepresentationModeAutomatic;
-    }
-    
+    configuration.preferredAssetRepresentationMode = PHPickerConfigurationAssetRepresentationModeAutomatic;
     configuration.selectionLimit = [options[@"selectionLimit"] integerValue];
 
-    if ([options[@"mediaType"] isEqualToString:@"video"]) {
-        configuration.filter = [PHPickerFilter videosFilter];
-    } else if ([options[@"mediaType"] isEqualToString:@"photo"]) {
+    if ([options[@"mediaType"] isEqualToString:@"photo"]) {
         configuration.filter = [PHPickerFilter imagesFilter];
-    } else if ((target == library) && ([options[@"mediaType"] isEqualToString:@"mixed"])) {
-        configuration.filter = [PHPickerFilter anyFilterMatchingSubfilters: @[PHPickerFilter.imagesFilter, PHPickerFilter.videosFilter]];
     }
     return configuration;
 #else
     return nil;
 #endif
 }
-
 
 + (BOOL) isSimulator
 {
@@ -110,39 +65,6 @@
       default:
         return @"jpg";
     }
-}
-
-+ (NSString *) getFileTypeFromUrl:(NSURL *)url {
-    CFStringRef fileExtension = (__bridge CFStringRef)[url pathExtension];
-    CFStringRef UTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, fileExtension, NULL);
-    CFStringRef MIMEType = UTTypeCopyPreferredTagWithClass(UTI, kUTTagClassMIMEType);
-    CFRelease(UTI);
-    return (__bridge_transfer NSString *)MIMEType;
-}
-
-+ (NSNumber *) getFileSizeFromUrl:(NSURL *)url {
-    NSError *attributesError;
-    NSDictionary *fileAttributes = [[NSFileManager defaultManager] attributesOfItemAtPath:[url path] error:&attributesError];
-    NSNumber *fileSizeNumber = [fileAttributes objectForKey:NSFileSize];
-    long fileSize = [fileSizeNumber longLongValue];
-
-    if (attributesError) {
-        return nil;
-    }
-
-    return [NSNumber numberWithLong:fileSize];
-}
-
-+ (CGSize)getVideoDimensionsFromUrl:(NSURL *)url {
-    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
-    NSArray *tracks = [asset tracksWithMediaType:AVMediaTypeVideo];
-    
-    if ([tracks count] > 0) {
-        AVAssetTrack *track = [tracks objectAtIndex:0];
-        return track.naturalSize;
-    }
-    
-    return CGSizeMake(0, 0);
 }
 
 + (UIImage*)resizeImage:(UIImage*)image maxWidth:(float)maxWidth maxHeight:(float)maxHeight

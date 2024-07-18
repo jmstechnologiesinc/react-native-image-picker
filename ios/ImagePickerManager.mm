@@ -1,7 +1,6 @@
 #import "ImagePickerManager.h"
 #import "ImagePickerUtils.h"
 #import <React/RCTConvert.h>
-#import <AVFoundation/AVFoundation.h>
 #import <Photos/Photos.h>
 #import <PhotosUI/PhotosUI.h>
 #import <MobileCoreServices/MobileCoreServices.h>
@@ -26,7 +25,6 @@
 
 @implementation ImagePickerManager
 
-NSString *errCameraUnavailable = @"camera_unavailable";
 NSString *errPermission = @"permission";
 NSString *errOthers = @"others";
 RNImagePickerTarget target;
@@ -34,15 +32,6 @@ RNImagePickerTarget target;
 BOOL photoSelected = NO;
 
 RCT_EXPORT_MODULE(ImagePicker)
-
-RCT_EXPORT_METHOD(launchCamera:(NSDictionary *)options callback:(RCTResponseSenderBlock)callback)
-{
-    target = camera;
-    photoSelected = NO;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self launchImagePicker:options callback:callback];
-    });
-}
 
 RCT_EXPORT_METHOD(launchImageLibrary:(NSDictionary *)options callback:(RCTResponseSenderBlock)callback)
 {
@@ -66,12 +55,6 @@ RCT_EXPORT_METHOD(launchImageLibrary:(NSDictionary *)options callback:(RCTRespon
 - (void)launchImagePicker:(NSDictionary *)options callback:(RCTResponseSenderBlock)callback
 {
     self.callback = callback;
-
-    if (target == camera && [ImagePickerUtils isSimulator]) {
-        self.callback(@[@{@"errorCode": errCameraUnavailable}]);
-        return;
-    }
-
     self.options = options;
 
 #if __has_include(<PhotosUI/PHPicker.h>)
@@ -84,7 +67,6 @@ RCT_EXPORT_METHOD(launchImageLibrary:(NSDictionary *)options callback:(RCTRespon
             picker.presentationController.delegate = self;
 
             if([self.options[@"includeExtra"] boolValue]) {
-
                 [self checkPhotosPermissions:^(BOOL granted) {
                     if (!granted) {
                         self.callback(@[@{@"errorCode": errPermission}]);
@@ -152,16 +134,8 @@ NSData* extractImageData(UIImage* image){
     return (__bridge NSData *)imageData;
 }
 
-
-
 -(NSMutableDictionary *)mapImageToAsset:(UIImage *)image data:(NSData *)data phAsset:(PHAsset * _Nullable)phAsset {
     NSString *fileType = [ImagePickerUtils getFileType:data];
-    if (target == camera) {
-        if ([self.options[@"saveToPhotos"] boolValue]) {
-            UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil);
-        }
-        data = extractImageData(image);
-    }
 
     UIImage* newImage = image;
     if (![fileType isEqualToString:@"gif"]) {
@@ -227,118 +201,10 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
     }
 }
 
--(NSMutableDictionary *)mapVideoToAsset:(NSURL *)url phAsset:(PHAsset * _Nullable)phAsset error:(NSError **)error {
-    NSString *fileName = [url lastPathComponent];
-    NSString *path = [[NSTemporaryDirectory() stringByStandardizingPath] stringByAppendingPathComponent:fileName];
-    NSURL *videoDestinationURL = [NSURL fileURLWithPath:path];
-    NSString *fileExtension = [fileName pathExtension];
-
-    if ((target == camera) && [self.options[@"saveToPhotos"] boolValue]) {
-        UISaveVideoAtPathToSavedPhotosAlbum(url.path, nil, nil, nil);
-    }
-
-    if (![url.URLByResolvingSymlinksInPath.path isEqualToString:videoDestinationURL.URLByResolvingSymlinksInPath.path]) {
-        NSFileManager *fileManager = [NSFileManager defaultManager];
-
-        // Delete file if it already exists
-        if ([fileManager fileExistsAtPath:videoDestinationURL.path]) {
-            [fileManager removeItemAtURL:videoDestinationURL error:nil];
-        }
-
-        if (url) { // Protect against reported crash
-
-          // If we have write access to the source file, move it. Otherwise use copy.
-          if ([fileManager isWritableFileAtPath:[url path]]) {
-            [fileManager moveItemAtURL:url toURL:videoDestinationURL error:error];
-          } else {
-            [fileManager copyItemAtURL:url toURL:videoDestinationURL error:error];
-          }
-
-          if (error && *error) {
-              return nil;
-          }
-        }
-    }
-
-    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
-
-    if([self.options[@"formatAsMp4"] boolValue] && ![fileExtension isEqualToString:@"mp4"]) {
-        NSURL *parentURL = [videoDestinationURL URLByDeletingLastPathComponent];
-        NSString *path = [[parentURL.path stringByAppendingString:@"/"] stringByAppendingString:[[NSUUID UUID] UUIDString]];
-        path = [path stringByAppendingString:@".mp4"];
-        NSURL *outputURL = [NSURL fileURLWithPath:path];
-
-        [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
-        AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoDestinationURL options:nil];
-        AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetPassthrough];
-
-        exportSession.outputURL = outputURL;
-        exportSession.outputFileType = AVFileTypeMPEG4;
-        exportSession.shouldOptimizeForNetworkUse = YES;
-
-        dispatch_semaphore_t sem = dispatch_semaphore_create(0);
-
-        [exportSession exportAsynchronouslyWithCompletionHandler:^(void) {
-            if (exportSession.status == AVAssetExportSessionStatusCompleted) {
-                CGSize dimentions = [ImagePickerUtils getVideoDimensionsFromUrl:outputURL];
-                response[@"fileName"] = [outputURL lastPathComponent];
-                response[@"duration"] = [NSNumber numberWithDouble:CMTimeGetSeconds([AVAsset assetWithURL:outputURL].duration)];
-                response[@"uri"] = outputURL.absoluteString;
-                response[@"type"] = [ImagePickerUtils getFileTypeFromUrl:outputURL];
-                response[@"fileSize"] = [ImagePickerUtils getFileSizeFromUrl:outputURL];
-                response[@"width"] = @(dimentions.width);
-                response[@"height"] = @(dimentions.height);
-
-                dispatch_semaphore_signal(sem);
-            } else if (exportSession.status == AVAssetExportSessionStatusFailed || exportSession.status == AVAssetExportSessionStatusCancelled) {
-                dispatch_semaphore_signal(sem);
-            }
-        }];
-
-
-        dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
-    } else {
-        CGSize dimentions = [ImagePickerUtils getVideoDimensionsFromUrl:videoDestinationURL];
-        response[@"fileName"] = fileName;
-        response[@"duration"] = [NSNumber numberWithDouble:CMTimeGetSeconds([AVAsset assetWithURL:videoDestinationURL].duration)];
-        response[@"uri"] = videoDestinationURL.absoluteString;
-        response[@"type"] = [ImagePickerUtils getFileTypeFromUrl:videoDestinationURL];
-        response[@"fileSize"] = [ImagePickerUtils getFileSizeFromUrl:videoDestinationURL];
-        response[@"width"] = @(dimentions.width);
-        response[@"height"] = @(dimentions.height);
-
-        if(phAsset){
-            response[@"timestamp"] = [self getDateTimeInUTC:phAsset.creationDate];
-            response[@"id"] = phAsset.localIdentifier;
-            // Add more extra data here ...
-        }
-    }
-
-    return response;
-}
-
 - (NSString *) getDateTimeInUTC:(NSDate *)date {
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
     [formatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ss.SSSZ"];
     return [formatter stringFromDate:date];
-}
-
-- (void)checkCameraPermissions:(void(^)(BOOL granted))callback
-{
-    AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
-    if (status == AVAuthorizationStatusAuthorized) {
-        callback(YES);
-        return;
-    }
-    else if (status == AVAuthorizationStatusNotDetermined){
-        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL granted) {
-            callback(granted);
-            return;
-        }];
-    }
-    else {
-        callback(NO);
-    }
 }
 
 - (void)checkPhotosPermissions:(void(^)(BOOL granted))callback
@@ -361,51 +227,6 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
     }
     else {
         callback(NO);
-    }
-}
-
-// Both camera and photo write permission is required to take picture/video and store it to public photos
-- (void)checkCameraAndPhotoPermission:(void(^)(BOOL granted))callback
-{
-    [self checkCameraPermissions:^(BOOL cameraGranted) {
-        if (!cameraGranted) {
-            callback(NO);
-            return;
-        }
-
-        [self checkPhotosPermissions:^(BOOL photoGranted) {
-            if (!photoGranted) {
-                callback(NO);
-                return;
-            }
-            callback(YES);
-        }];
-    }];
-}
-
-- (void)checkPermission:(void(^)(BOOL granted)) callback
-{
-    void (^permissionBlock)(BOOL) = ^(BOOL permissionGranted) {
-        if (!permissionGranted) {
-            callback(NO);
-            return;
-        }
-        callback(YES);
-    };
-
-    if (target == camera && [self.options[@"saveToPhotos"] boolValue]) {
-        [self checkCameraAndPhotoPermission:permissionBlock];
-    }
-    else if (target == camera) {
-        [self checkCameraPermissions:permissionBlock];
-    }
-    else {
-        if (@available(iOS 11.0, *)) {
-            callback(YES);
-        }
-        else {
-            [self checkPhotosPermissions:permissionBlock];
-        }
     }
 }
 
@@ -458,18 +279,7 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
             UIImage *image = [ImagePickerManager getUIImageFromInfo:info];
 
             [assets addObject:[self mapImageToAsset:image data:[NSData dataWithContentsOfURL:[ImagePickerManager getNSURLFromInfo:info]] phAsset:asset]];
-        } else {
-            NSError *error;
-            NSDictionary *videoAsset = [self mapVideoToAsset:info[UIImagePickerControllerMediaURL] phAsset:asset error:&error];
-
-            if (videoAsset == nil) {
-                NSString *errorMessage = error.localizedFailureReason;
-                if (errorMessage == nil) errorMessage = @"Video asset not found";
-                self.callback(@[@{@"errorCode": errOthers, @"errorMessage": errorMessage}]);
-                return;
-            }
-            [assets addObject:videoAsset];
-        }
+        } 
 
         NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
         response[@"assets"] = assets;
@@ -551,14 +361,6 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
                 UIImage *image = [[UIImage alloc] initWithData:data];
 
                 assets[index] = [self mapImageToAsset:image data:data phAsset:asset];
-                dispatch_group_leave(completionGroup);
-            }];
-        } else if ([provider hasItemConformingToTypeIdentifier:(NSString *)kUTTypeMovie]) {
-            [provider loadFileRepresentationForTypeIdentifier:(NSString *)kUTTypeMovie completionHandler:^(NSURL * _Nullable url, NSError * _Nullable error) {
-                NSDictionary *mappedAsset = [self mapVideoToAsset:url phAsset:asset error:nil];
-                if (nil != mappedAsset) {
-                    assets[index] = mappedAsset;
-                }
                 dispatch_group_leave(completionGroup);
             }];
         } else {

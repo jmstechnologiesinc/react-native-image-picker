@@ -25,6 +25,8 @@ export default function App() {
     }
   }, []);
 
+  console.log(response);
+
   return (
     <SafeAreaView style={styles.container}>
       <DemoTitle>🌄 React Native Image Picker</DemoTitle>

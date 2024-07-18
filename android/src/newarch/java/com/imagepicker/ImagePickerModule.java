@@ -21,10 +21,7 @@ public class ImagePickerModule extends NativeImagePickerSpec {
         return ImagePickerModuleImpl.NAME;
     }
 
-    @Override
-    public void launchCamera(final ReadableMap options, final Callback callback) {
-        imagePickerModuleImpl.launchCamera(options, callback);
-    }
+   
 
     @Override
     public void launchImageLibrary(final ReadableMap options, final Callback callback) {

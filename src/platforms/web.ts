@@ -1,5 +1,4 @@
 import {
-  CameraOptions,
   ImageLibraryOptions,
   Callback,
   ImagePickerResponse,
@@ -9,7 +8,7 @@ import {
 } from '../types';
 
 const DEFAULT_OPTIONS: Pick<
-  ImageLibraryOptions & CameraOptions,
+  ImageLibraryOptions,
   'mediaType' | 'includeBase64' | 'selectionLimit'
 > = {
   mediaType: 'photo',
@@ -17,27 +16,11 @@ const DEFAULT_OPTIONS: Pick<
   selectionLimit: 1,
 };
 
-export function camera(
-  options: ImageLibraryOptions = DEFAULT_OPTIONS,
-  callback?: Callback,
-): Promise<ImagePickerResponse> {
-  return new Promise((resolve) => {
-    const result = {
-      errorCode: 'camera_unavailable' as ErrorCode,
-      errorMessage: 'launchCamera is not supported for web yet',
-    };
-
-    if (callback) callback(result);
-
-    resolve(result);
-  });
-}
-
 export function imageLibrary(
   options: ImageLibraryOptions = DEFAULT_OPTIONS,
   callback?: Callback,
 ): Promise<ImagePickerResponse> {
-  // Only supporting 'photo' mediaType for now.
+  // Solo se soporta 'photo' como mediaType por ahora.
   if (options.mediaType !== 'photo') {
     const result = {
       errorCode: 'others' as ErrorCode,
@@ -129,11 +112,6 @@ function readFile(
             uri,
             width: image.naturalWidth ?? image.width,
             height: image.naturalHeight ?? image.height,
-            // The blob's result cannot be directly decoded as Base64 without
-            // first removing the Data-URL declaration preceding the
-            // Base64-encoded data. To retrieve only the Base64 encoded string,
-            // first remove data:*/*;base64, from the result.
-            // https://developer.mozilla.org/en-US/docs/Web/API/FileReader/readAsDataURL
             ...(options.includeBase64 && {
               base64: uri.substr(uri.indexOf(',') + 1),
             }),
@@ -151,9 +129,9 @@ function readFile(
 function getWebMediaType(mediaType: MediaType) {
   const webMediaTypes = {
     photo: 'image/*',
-    video: 'video/*',
-    mixed: 'image/*,video/*',
+    // video: 'video/*',
+    // mixed: 'image/*,video/*',
   };
 
-  return webMediaTypes[mediaType] ?? webMediaTypes.photo;
+  return webMediaTypes.photo;
 }
