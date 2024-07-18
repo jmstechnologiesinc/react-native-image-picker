@@ -1,5 +1,5 @@
 {
-  "name": "react-native-image-picker",
+  "name": "@jmstechnologiesinc/react-native-image-picker",
   "version": "7.1.2",
   "description": "A React Native module that allows you to use native UI to select media from the device library or directly from the camera",
   "react-native": "src/index.ts",
@@ -36,7 +36,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/react-native-image-picker/react-native-image-picker.git"
+    "url": "https://github.com/jmstechnologiesinc/react-native-image-picker.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "devDependencies": {
     "@react-native-community/bob": "0.17.1",
